@@ -1,8 +1,10 @@
-from PySide2.QtWidgets import QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QVBoxLayout, QWidget #import classes from the QtWidgets module
+from PySide2.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QSlider, QVBoxLayout, QWidget #import classes from the QtWidgets module
 from PySide2.QtCore import Qt #Import Qt class from QtCore
+from maya.OpenMaya import MVector
 import maya.OpenMayaUI as OpenMayaUI #Import Maya UI module
 import shiboken2 #Import shoken2
 import maya.cmds as mc #Import maya commands
+import maya.mel as mel
 
 def GetMayaMainWindow()->QMainWindow: #Defines the GetMayaMainWindow() function that returns QMainWindow
     mainWindow = OpenMayaUI.MQtUtil.mainWindow() #Instantiate a mainWindow() class and assign to mainWindow
@@ -39,7 +41,7 @@ class LimbRigger: #Define LimbRigger class
             raise Exception("Invalid Selection, please select the first joint of the limb") #Display error 
 
     def CreateFKControllerForJoint(self, jntName): #Define CreateFKControllerForJoint Function
-        ctrlName = "ac_L_fk" + jntName #Set control name to prefix + jntName
+        ctrlName = "ac_L_fk_" + jntName #Set control name to prefix + jntName
         ctrlGrpName = ctrlName + "_grp" #Set group name to ctrlName + suffix
         mc.circle(name = ctrlName, radius = self.controllerSize, normal = (1,0,0)) #Create a nurb circle and set name, size, and orientation
         mc.group(ctrlName, n=ctrlGrpName) #Group ctrl to ctrlGrp
@@ -47,6 +49,27 @@ class LimbRigger: #Define LimbRigger class
         mc.orientConstraint(ctrlName, jntName) #Match orientation of control to joint
         return ctrlName, ctrlGrpName #Return control and control group
     
+    def CreateBoxController(self, name):
+        mel.eval(f"curve -n {name} -d 1 -p -0.5 0.5 0.5 -p 0.5 0.5 0.5 -p 0.5 0.5 -0.5 -p -0.5 0.5 -0.5 -p -0.5 0.5 0.5 -p -0.5 -0.5 0.5 -p 0.5 -0.5 0.5 -p 0.5 0.5 0.5 -p 0.5 -0.5 0.5 -p 0.5 -0.5 -0.5 -p 0.5 0.5 -0.5 -p 0.5 -0.5 -0.5 -p -0.5 -0.5 -0.5 -p -0.5 0.5 -0.5 -p -0.5 -0.5 -0.5 -p -0.5 -0.5 0.5 -k 0 -k 1 -k 2 -k 3 -k 4 -k 5 -k 6 -k 7 -k 8 -k 9 -k 10 -k 11 -k 12 -k 13 -k 14 -k 15")
+        mc.scale(self.controllerSize, self.controllerSize, self.controllerSize, name)
+        mc.makeIdentity(name, apply = True) # Freeze transform
+        grpName = name + "_grp"
+        mc.group(name, n = grpName)
+        return name, grpName
+
+    def CreatePlusController(self, name):
+        mel.eval(f"curve -n {name} -d 1 -p -1 1 0 -p -1 3 0 -p 1 3 0 -p 1 1 0 -p 3 1 0 -p 3 -1 0 -p 1 -1 0 -p 1 -3 0 -p -1 -3 0 -p -1 -1 0 -p -3 -1 0 -p -3 1 0 -p -1 1 0 -k 0 -k 1 -k 2 -k 3 -k 4 -k 5 -k 6 -k 7 -k 8 -k 9 -k 10 -k 11 -k 12 ;")
+        grpName = name + "_grp"
+        mc.group(name, n = grpName)
+        return name, grpName
+
+    def GetObjectLocation(self, objectName):
+        x, y, z = mc.xform(objectName, q=True, ws=True, t=True) #any transform, world space, translate attr
+        return MVector(x, y, z)
+    
+    def PrintMVector(self, vector):
+        print(f"<{vector.x}, {vector.y}, {vector.z}>")
+
     def RigLimb(self): #Defines RigLimb function
         rootCtrl, rootCtrlGrp = self.CreateFKControllerForJoint(self.root) #Creates FK controller for root joint
         midCtrl, midCtrlGrp = self.CreateFKControllerForJoint(self.mid) #Creates FK controller for mid joint 
@@ -55,11 +78,50 @@ class LimbRigger: #Define LimbRigger class
         mc.parent(midCtrlGrp, rootCtrl) #Parent mid control group to root controller
         mc.parent(endCtrlGrp, midCtrl) #Parent end control group to mid controller
 
+        ikEndCtrl = "ac_ik_" + self.end
+        ikEndCtrl, ikEndCtrlGrp = self.CreateBoxController(ikEndCtrl)
+        mc.matchTransform(ikEndCtrlGrp, self.end)
+        endOrientConstraint = mc.orientConstraint(ikEndCtrl, self.end)[0]
+
+        rootJntLoc = self.GetObjectLocation(self.root)
+        self.PrintMVector(rootJntLoc)
+
+        ikHandleName = "ikHandle_" + self.end
+        mc.ikHandle(n=ikHandleName, sol="ikRPsolver", sj=self.root, ee=self.end) 
+
+        poleVectorLocationVals = mc.getAttr(ikHandleName + ".poleVector")[0]
+        poleVector = MVector(poleVectorLocationVals[0], poleVectorLocationVals[1], poleVectorLocationVals[2])
+        poleVector.normalize()
+
+        endJntLoc = self.GetObjectLocation(self.end)
+        rootToEndVector = endJntLoc - rootJntLoc
+
+        poleVectorCtrlLoc = (rootJntLoc + rootToEndVector / 2) + (poleVector * rootToEndVector.length())
+        poleVectorCtrl = "ac_ik_" + self.mid
+        mc.spaceLocator(n=poleVectorCtrl)
+        poleVectorCtrlGrp = poleVectorCtrl + "_grp"
+        mc.group(poleVectorCtrl, n=poleVectorCtrlGrp)
+        mc.setAttr(poleVectorCtrlGrp + ".t", poleVectorCtrlLoc.x, poleVectorCtrlLoc.y, poleVectorCtrlLoc.z, typ="double3")
+
+        mc.poleVectorConstraint(poleVectorCtrl, ikHandleName)
+
+        ikfkBlendCtrl = "ac_ikfk_blend_" + self.root
+        ikfkBlendCtrl, ikfkBlendCtrlGrp = self.CreatePlusController(ikfkBlendCtrl)
+        mc.setAttr(ikfkBlendCtrlGrp+".t", rootJntLoc.x * 2, rootJntLoc.y, rootJntLoc.z * 2, typ="double3")
+        
+        ikfkBlendAttrName = "ikfkBlend"
+        mc.addAttr(ikfkBlendCtrl, ln=ikfkBlendAttrName, min=0, max=1, k=True)
+        ikfkBlendAttr = ikfkBlendCtrl + "." + ikfkBlendAttrName
+
+        mc.expression(s=f"{ikHandleName}.ikBlend={ikfkBlendAttr}")
+        #TODO: Finish Lecture from this point
+        
 
 class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
     def __init__(self): #Initializer
         super().__init__() #Call base class initializer
         self.rigger = LimbRigger() #Make new LimbRigger object
+        self.setWindowTitle("Limb Rigger")
 
         self.masterLayout = QVBoxLayout() #Create QVBoxLayout object and assign to masterLayout
         self.setLayout(self.masterLayout) #set layout to masterLayout
@@ -75,9 +137,27 @@ class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
         autoFindJointButton.clicked.connect(self.AutoFindJointButtonClicked) #Register AutoFindJointButtonClicked function to the clicked event
         self.masterLayout.addWidget(autoFindJointButton) #Add joint button widget to master layout
 
+        #Create controller size slider
+        ctrlSizeSlider = QSlider()
+        ctrlSizeSlider.setOrientation(Qt.Horizontal)
+        ctrlSizeSlider.setRange(1, 30)
+        ctrlSizeSlider.setValue(self.rigger.controllerSize)
+        #Display value of controller size
+        self.ctrlSizeLabel = QLabel(f"{self.rigger.controllerSize}")
+        ctrlSizeSlider.valueChanged.connect(self.CtrlSizeSliderChanged)
+
+        ctrlSizeLayout = QHBoxLayout()
+        ctrlSizeLayout.addWidget(ctrlSizeSlider)
+        ctrlSizeLayout.addWidget(self.ctrlSizeLabel)
+        self.masterLayout.addLayout(ctrlSizeLayout)
+        
         rigLimbButton = QPushButton("Rig Limb") #Create Limb Rig button
         rigLimbButton.clicked.connect(lambda : self.rigger.RigLimb()) #Register RigLimb function to button clicked event
         self.masterLayout.addWidget(rigLimbButton) #Add widget to master layout
+
+    def CtrlSizeSliderChanged(self, newValue):
+        self.ctrlSizeLabel.setText(f"{newValue}")
+        self.rigger.controllerSize = newValue
 
     def AutoFindJointButtonClicked(self): #Define AutoFindJointButtonClicked
         try: #Check for exception
