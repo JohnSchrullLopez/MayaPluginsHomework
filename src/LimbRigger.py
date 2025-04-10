@@ -7,6 +7,8 @@ import shiboken2 #Import shoken2
 import maya.cmds as mc #Import maya commands
 import maya.mel as mel
 
+#Test change
+
 def GetMayaMainWindow()->QMainWindow: #Defines the GetMayaMainWindow() function that returns QMainWindow
     mainWindow = OpenMayaUI.MQtUtil.mainWindow() #Instantiate a mainWindow() class and assign to mainWindow
     return shiboken2.wrapInstance(int(mainWindow), QMainWindow) #Create python wrapper for a QMainWindow object
