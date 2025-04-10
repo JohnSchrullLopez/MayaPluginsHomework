@@ -1,4 +1,5 @@
-from PySide2.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QSlider, QVBoxLayout, QWidget #import classes from the QtWidgets module
+from PySide2.QtGui import QColor
+from PySide2.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QSlider, QVBoxLayout, QWidget, QColorDialog #import classes from the QtWidgets module
 from PySide2.QtCore import Qt #Import Qt class from QtCore
 from maya.OpenMaya import MVector
 import maya.OpenMayaUI as OpenMayaUI #Import Maya UI module
@@ -70,7 +71,7 @@ class LimbRigger: #Define LimbRigger class
     def PrintMVector(self, vector):
         print(f"<{vector.x}, {vector.y}, {vector.z}>")
 
-    def RigLimb(self): #Defines RigLimb function
+    def RigLimb(self, color): #Defines RigLimb function
         rootCtrl, rootCtrlGrp = self.CreateFKControllerForJoint(self.root) #Creates FK controller for root joint
         midCtrl, midCtrlGrp = self.CreateFKControllerForJoint(self.mid) #Creates FK controller for mid joint 
         endCtrl, endCtrlGrp = self.CreateFKControllerForJoint(self.end) #Creates FK controller for end joint
@@ -114,7 +115,21 @@ class LimbRigger: #Define LimbRigger class
         ikfkBlendAttr = ikfkBlendCtrl + "." + ikfkBlendAttrName
 
         mc.expression(s=f"{ikHandleName}.ikBlend={ikfkBlendAttr}")
-        #TODO: Finish Lecture from this point
+        mc.expression(s=f"{ikEndCtrlGrp}.v={poleVectorCtrlGrp}.v={ikfkBlendAttr}")
+        mc.expression(s=f"{rootCtrlGrp}.v=1-{ikfkBlendAttr}")
+        mc.expression(s=f"{endOrientConstraint}.{endCtrl}W0 = 1-{ikfkBlendAttr}")
+        mc.expression(s=f"{endOrientConstraint}.{ikEndCtrl}W1 = {ikfkBlendAttr}")
+       
+        topGrpName = f"{self.root}_rig_grp"
+        mc.group([rootCtrlGrp, ikEndCtrlGrp, poleVectorCtrlGrp, ikfkBlendCtrlGrp], n=topGrpName)
+        mc.parent(ikHandleName, ikEndCtrl)
+
+        #Set Color Override
+        mc.expression(s=f"{self.root}_rig_grp.overrideEnabled = 1")
+        mc.expression(s=f"{self.root}_rig_grp.overrideRGBColors = 1")
+        print(QColor.rgba(color))
+        mc.setAttr(f"{self.root}_rig_grp.overrideColorRGB", QColor.red(color) / 255, QColor.green(color) / 255, QColor.blue(color) / 255)
+        
         
 
 class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
@@ -150,10 +165,23 @@ class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
         ctrlSizeLayout.addWidget(ctrlSizeSlider)
         ctrlSizeLayout.addWidget(self.ctrlSizeLabel)
         self.masterLayout.addLayout(ctrlSizeLayout)
-        
+
+        #Color Dialog
+        self.colorPickerWidget = QColorDialog()
+        self.colorPickerWidget.hide()
+        self.chosenColor = ""
+
+        #Open Color Dialog Button
+        openColorPickerWidgetButton = QPushButton("Choose a color")
+        openColorPickerWidgetButton.clicked.connect(self.AddColorPicker)
+        self.masterLayout.addWidget(openColorPickerWidgetButton)
+
         rigLimbButton = QPushButton("Rig Limb") #Create Limb Rig button
-        rigLimbButton.clicked.connect(lambda : self.rigger.RigLimb()) #Register RigLimb function to button clicked event
+        rigLimbButton.clicked.connect(lambda : self.rigger.RigLimb(self.chosenColor)) #Register RigLimb function to button clicked event
         self.masterLayout.addWidget(rigLimbButton) #Add widget to master layout
+
+    def AddColorPicker(self):
+        self.chosenColor = self.colorPickerWidget.getColor()
 
     def CtrlSizeSliderChanged(self, newValue):
         self.ctrlSizeLabel.setText(f"{newValue}")
