@@ -138,7 +138,7 @@ class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
     def __init__(self): #Initializer
         super().__init__() #Call base class initializer
         self.rigger = LimbRigger() #Make new LimbRigger object
-        self.setWindowTitle("Limb Rigger")
+        self.setWindowTitle("Limb Rigger v1.0.0")
 
         self.masterLayout = QVBoxLayout() #Create QVBoxLayout object and assign to masterLayout
         self.setLayout(self.masterLayout) #set layout to masterLayout
