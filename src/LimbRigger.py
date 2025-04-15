@@ -131,8 +131,40 @@ class LimbRigger: #Define LimbRigger class
         mc.expression(s=f"{self.root}_rig_grp.overrideRGBColors = 1")
         print(QColor.rgba(color))
         mc.setAttr(f"{self.root}_rig_grp.overrideColorRGB", QColor.red(color) / 255, QColor.green(color) / 255, QColor.blue(color) / 255)
-        
-        
+
+class ColorOptionsWidget():
+    def __init__(self):
+        #Color Dialog
+        self.colorPickerWidget = QColorDialog()
+        self.colorPickerWidget.hide()
+        self.chosenColor = ""
+
+    def AddColorPickerButton(self, parentLayout):
+        #Open Color Dialog Button
+        openColorPickerWidgetButton = QPushButton("Choose a color")
+        openColorPickerWidgetButton.clicked.connect(self.AddColorPicker)
+        parentLayout.addWidget(openColorPickerWidgetButton)
+
+    def AddColorPicker(self):
+        print("Called")
+        self.chosenColor = self.colorPickerWidget.getColor()
+
+    def AddSetColorButton(self, parentLayout):
+        openSetColorButton = QPushButton("Choose and set new color")
+        openSetColorButton.clicked.connect(self.SetColor)
+        parentLayout.addWidget(openSetColorButton)
+
+    def SetColor(self):
+        self.chosenColor = self.colorPickerWidget.getColor()
+        print(mc.ls(sl=True, st=True, type="transform"))
+
+        for controller in mc.ls(sl=True, type="transform"):
+            #mc.expression(s=f"{controller}.overrideEnabled = 1")
+            #mc.expression(s=f"{controller}.overrideRGBColors = 1")
+
+            mc.setAttr(f"{controller}.overrideEnabled", 1)
+            mc.setAttr(f"{controller}.overrideRGBColors", 1)
+            mc.setAttr(f"{controller}.overrideColorRGB", QColor.red(self.chosenColor) / 255, QColor.green(self.chosenColor) / 255, QColor.blue(self.chosenColor) / 255)
 
 class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
     def __init__(self): #Initializer
@@ -159,6 +191,7 @@ class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
         ctrlSizeSlider.setOrientation(Qt.Horizontal)
         ctrlSizeSlider.setRange(1, 30)
         ctrlSizeSlider.setValue(self.rigger.controllerSize)
+
         #Display value of controller size
         self.ctrlSizeLabel = QLabel(f"{self.rigger.controllerSize}")
         ctrlSizeSlider.valueChanged.connect(self.CtrlSizeSliderChanged)
@@ -168,22 +201,13 @@ class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
         ctrlSizeLayout.addWidget(self.ctrlSizeLabel)
         self.masterLayout.addLayout(ctrlSizeLayout)
 
-        #Color Dialog
-        self.colorPickerWidget = QColorDialog()
-        self.colorPickerWidget.hide()
-        self.chosenColor = ""
-
-        #Open Color Dialog Button
-        openColorPickerWidgetButton = QPushButton("Choose a color")
-        openColorPickerWidgetButton.clicked.connect(self.AddColorPicker)
-        self.masterLayout.addWidget(openColorPickerWidgetButton)
+        self.colorOptions = ColorOptionsWidget()
+        self.colorOptions.AddColorPickerButton(self.masterLayout)
+        self.colorOptions.AddSetColorButton(self.masterLayout)
 
         rigLimbButton = QPushButton("Rig Limb") #Create Limb Rig button
-        rigLimbButton.clicked.connect(lambda : self.rigger.RigLimb(self.chosenColor)) #Register RigLimb function to button clicked event
+        rigLimbButton.clicked.connect(lambda : self.rigger.RigLimb(self.colorOptions.chosenColor)) #Register RigLimb function to button clicked event
         self.masterLayout.addWidget(rigLimbButton) #Add widget to master layout
-
-    def AddColorPicker(self):
-        self.chosenColor = self.colorPickerWidget.getColor()
 
     def CtrlSizeSliderChanged(self, newValue):
         self.ctrlSizeLabel.setText(f"{newValue}")
