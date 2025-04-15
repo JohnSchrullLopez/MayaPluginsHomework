@@ -1,31 +1,10 @@
 from PySide2.QtGui import QColor
-from PySide2.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QSlider, QVBoxLayout, QWidget, QColorDialog #import classes from the QtWidgets module
+from PySide2.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSlider, QVBoxLayout, QColorDialog #import classes from the QtWidgets module
 from PySide2.QtCore import Qt #Import Qt class from QtCore
 from maya.OpenMaya import MVector
-import maya.OpenMayaUI as OpenMayaUI #Import Maya UI module
-import shiboken2 #Import shoken2
 import maya.cmds as mc #Import maya commands
 import maya.mel as mel
-
-#Test change
-
-def GetMayaMainWindow()->QMainWindow: #Defines the GetMayaMainWindow() function that returns QMainWindow
-    mainWindow = OpenMayaUI.MQtUtil.mainWindow() #Instantiate a mainWindow() class and assign to mainWindow
-    return shiboken2.wrapInstance(int(mainWindow), QMainWindow) #Create python wrapper for a QMainWindow object
-
-def DeleteWidgetWithName(name)->QMainWindow: #Defines the DeleteWidgetWithName() function that returns QMainWindow
-    for widget in GetMayaMainWindow().findChildren(QWidget, name): #Loop through children of type QWidget with name in main maya window
-        widget.deleteLater() #Delete widget when event loop has control
-
-class MayaWindow(QWidget): #Define class MayaWindow 
-    def __init__(self): #Constructor
-        super().__init__(parent = GetMayaMainWindow()) #Parent this window to main maya window
-        DeleteWidgetWithName(self.GetWidgetUniqueName()) #Delete old widget if it exists
-        self.setWindowFlags(Qt.WindowType.Window) #Make widget a window
-        self.setObjectName(self.GetWidgetUniqueName()) #Set object name as unique identifier
-
-    def GetWidgetUniqueName(self): #Defines GetWidgetUniqueName() function
-        return "djsiofsklfhawp98ahw389dfnseiof" #Returns unique identifier for this widget
+from MayaUtils import MayaWindow
 
 class LimbRigger: #Define LimbRigger class
     def __init__(self): #Initializer
@@ -131,8 +110,40 @@ class LimbRigger: #Define LimbRigger class
         mc.expression(s=f"{self.root}_rig_grp.overrideRGBColors = 1")
         print(QColor.rgba(color))
         mc.setAttr(f"{self.root}_rig_grp.overrideColorRGB", QColor.red(color) / 255, QColor.green(color) / 255, QColor.blue(color) / 255)
-        
-        
+
+class ColorOptionsWidget():
+    def __init__(self):
+        #Color Dialog
+        self.colorPickerWidget = QColorDialog()
+        self.colorPickerWidget.hide()
+        self.chosenColor = ""
+
+    def AddColorPickerButton(self, parentLayout):
+        #Open Color Dialog Button
+        openColorPickerWidgetButton = QPushButton("Choose a color")
+        openColorPickerWidgetButton.clicked.connect(self.AddColorPicker)
+        parentLayout.addWidget(openColorPickerWidgetButton)
+
+    def AddColorPicker(self):
+        print("Called")
+        self.chosenColor = self.colorPickerWidget.getColor()
+
+    def AddSetColorButton(self, parentLayout):
+        openSetColorButton = QPushButton("Choose and set new color")
+        openSetColorButton.clicked.connect(self.SetColor)
+        parentLayout.addWidget(openSetColorButton)
+
+    def SetColor(self):
+        self.chosenColor = self.colorPickerWidget.getColor()
+        print(mc.ls(sl=True, st=True, type="transform"))
+
+        for controller in mc.ls(sl=True, type="transform"):
+            #mc.expression(s=f"{controller}.overrideEnabled = 1")
+            #mc.expression(s=f"{controller}.overrideRGBColors = 1")
+
+            mc.setAttr(f"{controller}.overrideEnabled", 1)
+            mc.setAttr(f"{controller}.overrideRGBColors", 1)
+            mc.setAttr(f"{controller}.overrideColorRGB", QColor.red(self.chosenColor) / 255, QColor.green(self.chosenColor) / 255, QColor.blue(self.chosenColor) / 255)
 
 class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
     def __init__(self): #Initializer
@@ -159,6 +170,7 @@ class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
         ctrlSizeSlider.setOrientation(Qt.Horizontal)
         ctrlSizeSlider.setRange(1, 30)
         ctrlSizeSlider.setValue(self.rigger.controllerSize)
+
         #Display value of controller size
         self.ctrlSizeLabel = QLabel(f"{self.rigger.controllerSize}")
         ctrlSizeSlider.valueChanged.connect(self.CtrlSizeSliderChanged)
@@ -168,22 +180,13 @@ class LimbRiggerWidget(MayaWindow): #Define LimbRiggerWidget
         ctrlSizeLayout.addWidget(self.ctrlSizeLabel)
         self.masterLayout.addLayout(ctrlSizeLayout)
 
-        #Color Dialog
-        self.colorPickerWidget = QColorDialog()
-        self.colorPickerWidget.hide()
-        self.chosenColor = ""
-
-        #Open Color Dialog Button
-        openColorPickerWidgetButton = QPushButton("Choose a color")
-        openColorPickerWidgetButton.clicked.connect(self.AddColorPicker)
-        self.masterLayout.addWidget(openColorPickerWidgetButton)
+        self.colorOptions = ColorOptionsWidget()
+        self.colorOptions.AddColorPickerButton(self.masterLayout)
+        self.colorOptions.AddSetColorButton(self.masterLayout)
 
         rigLimbButton = QPushButton("Rig Limb") #Create Limb Rig button
-        rigLimbButton.clicked.connect(lambda : self.rigger.RigLimb(self.chosenColor)) #Register RigLimb function to button clicked event
+        rigLimbButton.clicked.connect(lambda : self.rigger.RigLimb(self.colorOptions.chosenColor)) #Register RigLimb function to button clicked event
         self.masterLayout.addWidget(rigLimbButton) #Add widget to master layout
-
-    def AddColorPicker(self):
-        self.chosenColor = self.colorPickerWidget.getColor()
 
     def CtrlSizeSliderChanged(self, newValue):
         self.ctrlSizeLabel.setText(f"{newValue}")
