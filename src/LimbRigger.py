@@ -1,3 +1,7 @@
+import importlib
+import MayaUtils
+importlib.reload(MayaUtils)
+
 from PySide2.QtGui import QColor
 from PySide2.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QSlider, QVBoxLayout, QColorDialog #import classes from the QtWidgets module
 from PySide2.QtCore import Qt #Import Qt class from QtCore
