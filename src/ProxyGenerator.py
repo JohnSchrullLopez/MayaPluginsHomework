@@ -38,7 +38,40 @@ class ProxyGenerator:
         chunks = []
         controls = []
         for jnt, vert in jointVertDict.items():
-            newChuck = self.CreateProxyModelForJointAndVerts(jnt, vert)
+            newChunk = self.CreateProxyModelForJointAndVerts(jnt, vert)
+            if not newChunk:
+                continue
+
+            newSkinCluster = mc.skinCluster(self.joints, newChunk)[0]
+            mc.copySkinWeights(ss=self.skin, ds=newSkinCluster, nm=True, sa="closestPoint", ia="closestJoint")
+            chunks.append(newChunk)
+
+            ctrlName = "ac_" + jnt + "_proxy"
+            mc.spaceLocator(n=ctrlName)
+            ctrlGrpName = ctrlName + "_grp"
+            mc.group(ctrlName, n=ctrlGrpName)
+            mc.matchTransform(ctrlGrpName, jnt)
+
+            visibilityAttr = "vis"
+            mc.addAttr(ctrlName, ln=visibilityAttr, min=0, max=1, dv=1, k=True)
+            mc.connectAttr(ctrlName + "." + visibilityAttr, newChunk + ".v")
+            controls.append(ctrlGrpName)
+
+        proxyTopGrp = self.model + "_proxy_grp"
+        mc.group(chunks, n=proxyTopGrp)
+
+        ctrlTopGrp = "ac_" + self.model + "_proxy_grp"
+        mc.group(controls, n=ctrlTopGrp)
+
+        globalProxyCtrl = "ac_" + self.model + "_proxy_global"
+        mc.circle(n=globalProxyCtrl, r=20)
+
+        mc.parent(proxyTopGrp, globalProxyCtrl)
+        mc.parent(ctrlTopGrp, globalProxyCtrl)
+
+        mc.setAttr(proxyTopGrp + ".inheritsTransform", 0)
+        mc.addAttr(globalProxyCtrl, ln="vis", min=0, max=1, k=True, dv=1)
+        mc.connectAttr(globalProxyCtrl + ".vis", proxyTopGrp + ".v")
 
     def CreateProxyModelForJointAndVerts(self, joint, verts):
         if not verts:
@@ -71,12 +104,15 @@ class ProxyGenerator:
         verts = mc.ls(f"{self.model}.vtx[*]", fl=True)
         for vert in verts:
             ownerJoint = self.GetJointWithMaxInfluence(vert, self.skin)
-            dict[ownerJoint].append(vert)
+            if ownerJoint:
+                dict[ownerJoint].append(vert)
 
         return dict
 
     def GetJointWithMaxInfluence(self, vert, skin):
         weights = mc.skinPercent(skin, vert, q=True, v=True)
+        if not weights:
+            return None
         joints = mc.skinPercent(skin, vert, q=True, t=None)
 
         maxWeightIndex = 0
