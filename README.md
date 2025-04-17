@@ -52,7 +52,7 @@ explain classes, functions, and the logic
             for dupFace in allDupFaces:
                 if dupFace.replace(dup, "") not in faceNames:
                     facesToDelete.append(dupFace)
-* Delete the faces to delete array
+* Delete the "faces to delete" array
 
 ## GetJointWithMaxInfluence()
 * Get a list of joints and the weight for the current joint and vertex 
