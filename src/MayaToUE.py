@@ -1,5 +1,6 @@
 from MayaUtils import *
-from PySide2.QtWidgets import QLineEdit, QListWidget, QMessageBox, QPushButton, QVBoxLayout
+from PySide2.QtGui import QRegExpValidator
+from PySide2.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMessageBox, QPushButton, QVBoxLayout
 import maya.cmds as mc
 
 def TryAction(actionFunc):
@@ -13,7 +14,7 @@ def TryAction(actionFunc):
 
 class AnimClip:
     def __init__(self):
-        self.subfix = ""
+        self.suffix = ""
         self.frameMin = mc.playbackOptions(q=True, min=True)
         self.frameMax = mc.playbackOptions(q=True, max=True)
         self.shouldExport = True
@@ -25,6 +26,22 @@ class MayaToUE:
         self.animations : list[AnimClip] = []
         self.fileName = ""
         self.saveDir = ""
+
+    def AddSelectedMeshes(self):
+        selection = mc.ls(sl=True)
+
+        if not selection:
+            raise Exception("No Mesh Selected. Select all the meshes of your rig")
+        
+        meshes = []
+        for sel in selection:
+            if IsMesh(sel):
+                meshes.append(sel)
+
+        if len(meshes) == 0:
+            raise Exception("No Mesh Selected. Select all the meshes of your rig")
+        
+        self.models = meshes
 
     def SetSelectedJointAsRoot(self):
         selection = mc.ls(sl=True, type="joint")
@@ -47,6 +64,32 @@ class MayaToUE:
         mc.joint(n=rootJntName)
         mc.parent(self.rootJnt, rootJntName)
         self.rootJnt = rootJntName
+
+class AnimClipWidget(MayaWindow):
+    def __init__(self, animClip: AnimClip):
+        super().__init__()
+        self.animClip = animClip
+        self.masterLayout = QHBoxLayout()
+        self.setLayout(self.masterLayout)
+
+        shouldExportCheckbox = QCheckBox()
+        shouldExportCheckbox.setChecked(self.animClip.shouldExport)
+        self.masterLayout.addWidget(shouldExportCheckbox)
+        shouldExportCheckbox.toggled.connect(self.ShouldExportCheckboxToggled)
+
+        suffixLabel = QLabel("Suffix: ")
+        self.masterLayout.addWidget(suffixLabel)
+        suffixLineEdit = QLineEdit()
+        suffixLineEdit.setValidator(QRegExpValidator("[a-zA-Z0-9_]+"))
+        suffixLineEdit.setText(self.animClip.suffix)
+        suffixLineEdit.textChanged.connect(self.SuffixTextChanged)
+        self.masterLayout.addWidget(suffixLineEdit)
+
+    def SuffixTextChanged(self, newText):
+        self.animClip.suffix = newText
+
+    def ShouldExportCheckboxToggled(self):
+        self.animClip.shouldExport = not self.animClip.shouldExport
 
 class MayaToUEWidget(MayaWindow):
     def GetWidgetUniqueName(self):
@@ -76,6 +119,16 @@ class MayaToUEWidget(MayaWindow):
         self.masterLayout.addWidget(self.meshList)
         self.meshList.setMaximumHeight(100)
 
+        addMeshesBtn = QPushButton("Add Meshes")
+        addMeshesBtn.clicked.connect(self.AddMeshesBtnClicked)
+        self.masterLayout.addWidget(addMeshesBtn)
+
+    @TryAction
+    def AddMeshesBtnClicked(self):
+        self.mayaToUE.AddSelectedMeshes()
+        self.meshList.clear()
+        self.meshList.addItems(self.mayaToUE.models)
+
     @TryAction
     def AddRootJntBtnClicked(self):
         self.mayaToUE.AddRootJoint()
@@ -86,4 +139,5 @@ class MayaToUEWidget(MayaWindow):
         self.mayaToUE.SetSelectedJointAsRoot()
         self.rootJntText.setText(self.mayaToUE.rootJnt)
 
-MayaToUEWidget().show()
+#MayaToUEWidget().show()
+AnimClipWidget(AnimClip()).show()
