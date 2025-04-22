@@ -1,6 +1,15 @@
 from MayaUtils import *
-from PySide2.QtWidgets import QLineEdit, QPushButton, QVBoxLayout
+from PySide2.QtWidgets import QLineEdit, QMessageBox, QPushButton, QVBoxLayout
 import maya.cmds as mc
+
+def TryAction(actionFunc):
+    def wrapper(*args, **kwargs):
+        try:
+            actionFunc(*args, **kwargs)
+        except Exception as e:
+            QMessageBox().critical(None, "Error", f"{e}")
+
+    return wrapper
 
 class AnimClip:
     def __init__(self):
@@ -44,6 +53,7 @@ class MayaToUEWidget(MayaWindow):
         setSelectedAsRootJntBtn.clicked.connect(self.SetSelectedAsRootJntBtnClicked)
         self.masterLayout.addWidget(setSelectedAsRootJntBtn)
 
+    @TryAction
     def SetSelectedAsRootJntBtnClicked(self):
         self.mayaToUE.SetSelectedJointAsRoot()
         self.rootJntText.setText(self.mayaToUE.rootJnt)
