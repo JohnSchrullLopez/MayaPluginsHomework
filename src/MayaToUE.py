@@ -1,5 +1,5 @@
 from MayaUtils import *
-from PySide2.QtWidgets import QLineEdit, QMessageBox, QPushButton, QVBoxLayout
+from PySide2.QtWidgets import QLineEdit, QListWidget, QMessageBox, QPushButton, QVBoxLayout
 import maya.cmds as mc
 
 def TryAction(actionFunc):
@@ -71,6 +71,10 @@ class MayaToUEWidget(MayaWindow):
         addRootJntBtn = QPushButton("Add Root Joint")
         addRootJntBtn.clicked.connect(self.AddRootJntBtnClicked)
         self.masterLayout.addWidget(addRootJntBtn)
+
+        self.meshList = QListWidget()
+        self.masterLayout.addWidget(self.meshList)
+        self.meshList.setMaximumHeight(100)
 
     @TryAction
     def AddRootJntBtnClicked(self):
