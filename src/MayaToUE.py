@@ -1,5 +1,5 @@
 from MayaUtils import *
-from PySide2.QtGui import QRegExpValidator
+from PySide2.QtGui import QIntValidator, QRegExpValidator
 from PySide2.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QMessageBox, QPushButton, QVBoxLayout
 import maya.cmds as mc
 
@@ -14,7 +14,7 @@ def TryAction(actionFunc):
 
 class AnimClip:
     def __init__(self):
-        self.suffix = ""
+        self.subfix = ""
         self.frameMin = mc.playbackOptions(q=True, min=True)
         self.frameMax = mc.playbackOptions(q=True, max=True)
         self.shouldExport = True
@@ -26,6 +26,10 @@ class MayaToUE:
         self.animations : list[AnimClip] = []
         self.fileName = ""
         self.saveDir = ""
+
+    def AddNewAnimClip(self):
+        self.animations.append(AnimClip())
+        return self.animations[-1]
 
     def AddSelectedMeshes(self):
         selection = mc.ls(sl=True)
@@ -65,7 +69,7 @@ class MayaToUE:
         mc.parent(self.rootJnt, rootJntName)
         self.rootJnt = rootJntName
 
-class AnimClipWidget(MayaWindow):
+class AnimClipWidget(QWidget):
     def __init__(self, animClip: AnimClip):
         super().__init__()
         self.animClip = animClip
@@ -77,16 +81,73 @@ class AnimClipWidget(MayaWindow):
         self.masterLayout.addWidget(shouldExportCheckbox)
         shouldExportCheckbox.toggled.connect(self.ShouldExportCheckboxToggled)
 
-        suffixLabel = QLabel("Suffix: ")
-        self.masterLayout.addWidget(suffixLabel)
-        suffixLineEdit = QLineEdit()
-        suffixLineEdit.setValidator(QRegExpValidator("[a-zA-Z0-9_]+"))
-        suffixLineEdit.setText(self.animClip.suffix)
-        suffixLineEdit.textChanged.connect(self.SuffixTextChanged)
-        self.masterLayout.addWidget(suffixLineEdit)
+        #
+        # Suffix
+        #
 
-    def SuffixTextChanged(self, newText):
-        self.animClip.suffix = newText
+        subfixLabel = QLabel("subfix: ")
+        self.masterLayout.addWidget(subfixLabel)
+        subfixLineEdit = QLineEdit()
+        subfixLineEdit.setValidator(QRegExpValidator("\w+"))
+        subfixLineEdit.setText(self.animClip.subfix)
+        subfixLineEdit.textChanged.connect(self.subfixTextChanged)
+        self.masterLayout.addWidget(subfixLineEdit)
+
+        #
+        # min Frame
+        #
+
+        minFrameLabel = QLabel("Min: ")
+        self.masterLayout.addWidget(minFrameLabel)
+        minFrameLineEdit = QLineEdit()
+        minFrameLineEdit.setValidator(QIntValidator())
+        minFrameLineEdit.setText(str(int(self.animClip.frameMin)))
+        minFrameLineEdit.textChanged.connect(self.MinFrameChanged)
+        self.masterLayout.addWidget(minFrameLineEdit)
+
+        #
+        # Max Frame
+        #
+
+        maxFrameLabel = QLabel("max: ")
+        self.masterLayout.addWidget(maxFrameLabel)
+        maxFrameLineEdit = QLineEdit()
+        maxFrameLineEdit.setValidator(QIntValidator())
+        maxFrameLineEdit.setText(str(int(self.animClip.frameMax)))
+        maxFrameLineEdit.textChanged.connect(self.MaxFrameChanged)
+        self.masterLayout.addWidget(maxFrameLineEdit)
+
+        #
+        # Set Range
+        #
+
+        setRangeBtn = QPushButton("[-]")
+        setRangeBtn.clicked.connect(self.SetRangeBtnClicked)
+        self.masterLayout.addWidget(setRangeBtn)
+
+        #
+        # Delete
+        #
+
+        deleteBtn = QPushButton("X")
+        deleteBtn.clicked.connect(self.DeleteBtnClicked)
+        self.masterLayout.addWidget(deleteBtn)
+
+    def DeleteBtnClicked(self):
+        self.deleteLater()
+
+    def SetRangeBtnClicked(self):
+        mc.playbackOptions(e=True, min=self.animClip.frameMin, max=self.animClip.frameMax)
+        mc.playbackOptions(e=True, ast=self.animClip.frameMin, aet=self.animClip.frameMax)
+
+    def MinFrameChanged(self, newVal):
+        self.animClip.frameMin = int(newVal)
+
+    def MaxFrameChanged(self, newVal):
+        self.animClip.frameMax = int(newVal)
+
+    def subfixTextChanged(self, newText):
+        self.animClip.subfix = newText
 
     def ShouldExportCheckboxToggled(self):
         self.animClip.shouldExport = not self.animClip.shouldExport
@@ -123,6 +184,19 @@ class MayaToUEWidget(MayaWindow):
         addMeshesBtn.clicked.connect(self.AddMeshesBtnClicked)
         self.masterLayout.addWidget(addMeshesBtn)
 
+        addAnimEntryBtn = QPushButton("Add Animation Clip")
+        addAnimEntryBtn.clicked.connect(self.AddAnimEntryBtnClicked)
+        self.masterLayout.addWidget(addAnimEntryBtn)
+
+        self.animClipEntryLayout = QVBoxLayout()
+        self.masterLayout.addLayout(self.animClipEntryLayout)
+    
+    @TryAction
+    def AddAnimEntryBtnClicked(self):
+        newAnimClip = self.mayaToUE.AddNewAnimClip()
+        newAnimClipWidget = AnimClipWidget(newAnimClip)
+        self.animClipEntryLayout.addWidget(newAnimClipWidget)
+
     @TryAction
     def AddMeshesBtnClicked(self):
         self.mayaToUE.AddSelectedMeshes()
@@ -139,5 +213,5 @@ class MayaToUEWidget(MayaWindow):
         self.mayaToUE.SetSelectedJointAsRoot()
         self.rootJntText.setText(self.mayaToUE.rootJnt)
 
-#MayaToUEWidget().show()
-AnimClipWidget(AnimClip()).show()
+MayaToUEWidget().show()
+#AnimClipWidget(AnimClip()).show()
