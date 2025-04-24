@@ -50,7 +50,7 @@ class MayaToUE:
 
         if self.animations:
             mc.FBXExportBakeComplexAnimation('-v', True)
-            os.makedirs(os.path.join(self.saveDir, "animations", exist_ok=True))
+            os.makedirs(os.path.join(self.saveDir, "animations"), exist_ok=True)
 
             for animClip in self.animations:
                 if not animClip.shouldExport:
