@@ -30,7 +30,41 @@ class MayaToUE:
         self.saveDir = ""
 
     def SendToUnreal(self):
-        print("Sending to Unreal!")
+        allJnts = []
+        allJnts.append(self.rootJnt)
+        children = mc.listRelatives(self.rootJnt, c=True, ad=True, type="joint")
+        if children:
+            allJnts.extend(children)
+
+        allMeshes = self.models
+        allObjectsToExport = allJnts + list(allMeshes)
+
+        mc.select(allObjectsToExport, r=True)
+        skeletalMeshExportPath = self.GetSkeletalMeshSavePath()
+
+        mc.FBXResetExport() #resets export settings
+        mc.FBXExportSmoothingGroups("-v", True)
+        mc.FBXExportInputConnections("-v", False)
+        # -f = filename, -s = selection, -ea = export animations
+        mc.FBXExport("-f", skeletalMeshExportPath, '-s', True, '-ea', False)
+
+        if self.animations:
+            mc.FBXExportBakeComplexAnimation('-v', True)
+            os.makedirs(os.path.join(self.saveDir, "animations", exist_ok=True))
+
+            for animClip in self.animations:
+                if not animClip.shouldExport:
+                    continue
+
+                animExportPath = self.GetAnimClipSavePath(animClip)
+                startFrame = animClip.frameMin
+                endFrame = animClip.frameMax
+
+                mc.FBXExportBakeComplexStart('-v', startFrame)
+                mc.FBXExportBakeComplexEnd('-v', endFrame)
+                mc.FBXExportBakeComplexStep('-v', 1)
+                mc.playbackOptions(e=True, min=startFrame, max=endFrame)
+                mc.FBXExport('-f', animExportPath, '-s', True, '-ea', True)
 
     def GetSkeletalMeshSavePath(self):
         savePath = os.path.join(self.saveDir, self.fileName + ".fbx")
